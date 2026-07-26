@@ -1,3 +1,5 @@
+diff --git a/kernel/reboot.c b/kernel/reboot.c
+index bd30a973fe94..3fbfced94257 100644
 --- a/kernel/reboot.c
 +++ b/kernel/reboot.c
 @@ -277,6 +277,11 @@ static DEFINE_MUTEX(reboot_mutex);
