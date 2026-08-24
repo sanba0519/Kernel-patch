@@ -515,7 +515,7 @@ diff --git a/fs/namespace.c b/fs/namespace.c
 index d772fe4..62c85f8 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
-@@ -27,10 +27,21 @@
+@@ -27,6 +27,9 @@
  #include <linux/bootmem.h>
  #include <linux/task_work.h>
  #include <linux/sched/task.h>
@@ -525,7 +525,10 @@ index d772fe4..62c85f8 100644
  
  #include "pnode.h"
  #include "internal.h"
- 
+@@ -31,6 +34,14 @@
+ #include "internal.h"
+ #ifdef CONFIG_OPLUS_SECURE_GUARD
+ #ifdef CONFIG_OPLUS_MOUNT_BLOCK
 +#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +extern bool susfs_is_current_ksu_domain(void);
 +extern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;
@@ -534,9 +537,9 @@ index d772fe4..62c85f8 100644
 +
 +#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 +
- /* Maximum number of mounts in a mount namespace */
- unsigned int sysctl_mount_max __read_mostly = 100000;
- 
+ #ifdef CONFIG_OPLUS_KEVENT_UPLOAD
+ #include <linux/oplus_kevent.h>
+ #endif /* CONFIG_OPLUS_KEVENT_UPLOAD */
 @@ -120,6 +131,13 @@ retry:
  static void mnt_free_id(struct mount *mnt)
  {
@@ -911,50 +914,6 @@ index c62a87e..8728344 100644
  
  	if (!(mark->connector->flags & FSNOTIFY_OBJ_TYPE_INODE))
  		return;
-@@ -83,6 +104,43 @@ static void inotify_fdinfo(struct seq_file *m, struct fsnotify_mark *mark)
- 	inode_mark = container_of(mark, struct inotify_inode_mark, fsn_mark);
- 	inode = igrab(mark->connector->inode);
- 	if (inode) {
-+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-+		mnt = real_mount(file->f_path.mnt);
-+		if (mnt->mnt_id >= DEFAULT_KSU_MNT_ID &&
-+			likely(susfs_is_current_proc_umounted()))
-+		{
-+			struct path path;
-+			char *pathname = kmalloc(PAGE_SIZE, GFP_KERNEL);
-+			char *dpath;
-+			if (!pathname) {
-+				goto orig_flow;
-+			}
-+			dpath = d_path(&file->f_path, pathname, PAGE_SIZE);
-+			if (!dpath) {
-+				goto out_kfree;
-+			}
-+			if (kern_path(dpath, 0, &path)) {
-+				goto out_kfree;
-+			}
-+			if (!path.dentry->d_inode) {
-+				goto out_path_put;
-+			}
-+			seq_printf(m, "inotify wd:%x ino:%lx sdev:%x mask:%x ignored_mask:0 ",
-+					inode_mark->wd, path.dentry->d_inode->i_ino, path.dentry->d_inode->i_sb->s_dev,
-+					inotify_mark_user_mask(mark));
-+			show_mark_fhandle(m, path.dentry->d_inode);
-+			seq_putc(m, '\n');
-+			path_put(&path);
-+			kfree(pathname);
-+			iput(inode);
-+			return;
-+out_path_put:
-+			path_put(&path);
-+out_kfree:
-+			kfree(pathname);
-+		}
-+orig_flow:
-+#endif
- 		seq_printf(m, "inotify wd:%x ino:%lx sdev:%x mask:%x ignored_mask:0 ",
- 			   inode_mark->wd, inode->i_ino, inode->i_sb->s_dev,
- 			   inotify_mark_user_mask(mark));
 diff --git a/fs/proc/base.c b/fs/proc/base.c
 index 0495111..e86c03f 100644
 --- a/fs/proc/base.c
@@ -1147,17 +1106,18 @@ diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
 index 1347939..5c594b9 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
-@@ -20,6 +20,9 @@
- #include <linux/uaccess.h>
+@@ -19,6 +19,10 @@
  #include <linux/mm_inline.h>
- #include <linux/ctype.h>
++#include <linux/ctype.h>
 +#if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
 +#include <linux/susfs_def.h>
 +#endif // #if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
  
  #include <asm/elf.h>
  #include <asm/tlb.h>
-@@ -349,6 +352,14 @@ static void show_vma_header_prefix(struct seq_file *m,
+ #include <asm/tlbflush.h>
+ #include <asm/pgtable.h>
+@@ -349,6 +353,14 @@ static void show_vma_header_prefix(struct seq_file *m,
  		   MAJOR(dev), MINOR(dev), ino);
  }
  
@@ -1172,7 +1132,7 @@ index 1347939..5c594b9 100644
  static void
  show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
  {
-@@ -363,9 +374,36 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
+@@ -363,9 +375,36 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
  
  	if (file) {
  		struct inode *inode = file_inode(vma->vm_file);
@@ -1209,7 +1169,7 @@ index 1347939..5c594b9 100644
  	}
  
  	start = vma->vm_start;
-@@ -831,6 +869,11 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
+@@ -831,6 +870,11 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
  		mss = &mss_stack;
  	}
  
@@ -1221,23 +1181,7 @@ index 1347939..5c594b9 100644
  	smaps_walk.private = mss;
  
  #ifdef CONFIG_SHMEM
-@@ -892,7 +935,6 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
- 			   vma_kernel_pagesize(vma) >> 10,
- 			   vma_mmu_pagesize(vma) >> 10);
- 
--
- 	if (!rollup_mode || last_vma)
- 		seq_printf(m,
- 			   "Rss:            %8lu kB\n"
-@@ -932,6 +974,7 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
- 		arch_show_smap(m, vma);
- 		show_smap_vma_flags(m, vma);
- 	}
-+
- 	m_cache_vma(m, vma);
- 	return ret;
- }
-@@ -1618,6 +1661,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+@@ -1618,6 +1662,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
  	while (count && (start_vaddr < end_vaddr)) {
  		int len;
  		unsigned long end;
@@ -1247,7 +1191,7 @@ index 1347939..5c594b9 100644
  
  		pm.pos = 0;
  		end = (start_vaddr + PAGEMAP_WALK_SIZE) & PAGEMAP_WALK_MASK;
-@@ -1625,7 +1671,15 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+@@ -1625,7 +1672,15 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
  		if (end < start_vaddr || end > end_vaddr)
  			end = end_vaddr;
  		down_read(&mm->mmap_sem);
@@ -4032,7 +3976,7 @@ diff --git a/kernel/sys.c b/kernel/sys.c
 index 30801ea..0fd8fad 100644
 --- a/kernel/sys.c
 +++ b/kernel/sys.c
-@@ -1182,12 +1182,20 @@ static int override_release(char __user *release, size_t len)
+@@ -1184,6 +1184,10 @@
  	return ret;
  }
  
@@ -4043,6 +3987,7 @@ index 30801ea..0fd8fad 100644
  SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
  {
  	struct new_utsname tmp;
+@@ -1192,6 +1196,10 @@
  
  	down_read(&uts_sem);
  	memcpy(&tmp, utsname(), sizeof(tmp));
@@ -4050,9 +3995,9 @@ index 30801ea..0fd8fad 100644
 +	if (static_branch_likely(&susfs_is_uname_spoof_buffer_set))
 +		susfs_spoof_uname(&tmp);
 +#endif
- 	up_read(&uts_sem);
- 	if (copy_to_user(name, &tmp, sizeof(tmp)))
- 		return -EFAULT;
+         if (!strncmp(current->comm, "bpfloader", 9) ||
+ 	    !strncmp(current->comm, "netbpfload", 10) ||
+ 	    !strncmp(current->comm, "netd", 4)) {
 diff --git a/mm/memory.c b/mm/memory.c
 index 0879df7..23c4b11 100644
 --- a/mm/memory.c
