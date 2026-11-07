@@ -1268,7 +1268,7 @@ index 132fed7..5a6d8e9 100755
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_MAP
 +	if (vma->vm_file && SUSFS_IS_INODE_SUS_MAP(file_inode(vma->vm_file)))
-+		return 0;
++		return;
 +#endif
 +
  	smaps_walk.private = mss;
