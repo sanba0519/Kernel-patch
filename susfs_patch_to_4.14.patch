@@ -972,7 +972,7 @@ index 517f88c..3af7d96 100644
 +				susfs_sus_kstat_spoof_inotify_fdinfo(&ino, &dev);
 +				seq_printf(m, "inotify wd:%x ino:%lx sdev:%x mask:%x ignored_mask:0 ",
 +						inode_mark->wd, ino, dev,
-+						inotify_mark_user_mask(mark));
++						(mark->mask & IN_ALL_EVENTS));
 +				show_mark_fhandle(m, inode);
 +				seq_putc(m, '\n');
 +				iput(inode);
@@ -1002,7 +1002,7 @@ index 517f88c..3af7d96 100644
 +				}
 +				seq_printf(m, "inotify wd:%x ino:%lx sdev:%x mask:%x ignored_mask:0 ",
 +						inode_mark->wd, d_backing_inode(path.dentry)->i_ino, d_backing_inode(path.dentry)->i_sb->s_dev,
-+						inotify_mark_user_mask(mark));
++						(mark->mask & IN_ALL_EVENTS));
 +				show_mark_fhandle(m, d_backing_inode(path.dentry));
 +				seq_putc(m, '\n');
 +				path_put(&path);
